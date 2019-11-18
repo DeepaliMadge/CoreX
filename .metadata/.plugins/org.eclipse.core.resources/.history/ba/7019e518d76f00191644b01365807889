@@ -1,0 +1,20 @@
+import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http'
+import { Userfeed } from 'app/shared/Interface/feed';
+import { AuthServerProvider } from 'app/core';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class FeedService {
+  // response;
+  baseURL = 'http://localhost:9090/CreditUnit/allCreditunit'
+  constructor(private _http:HttpClient, private authServerProvider:AuthServerProvider) { }
+
+  getFeedDetails(){
+
+    let tokenKey = this.authServerProvider.getToken();
+    console.log(tokenKey);
+    return this._http.get<Userfeed[]>('http://localhost:9090/api/creditunit/allcreditunit/?authtoken='+tokenKey);
+  }
+}

@@ -1,0 +1,160 @@
+package com.core.x.service;
+
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.boot.configurationprocessor.json.JSONException;
+import org.springframework.boot.configurationprocessor.json.JSONObject;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.stereotype.Service;
+
+import com.core.x.domain.Customer;
+import com.core.x.domain.Ticket;
+import com.core.x.domain.Transaction;
+import com.core.x.repository.CustomerRepository;
+
+@Service
+public class CustomerService {
+
+	private final CustomerRepository customerRepository;
+	
+	private final MongoOperations mongoOperations;
+
+	public CustomerService(CustomerRepository customerRepository,MongoOperations mongoOperations) {
+		this.customerRepository = customerRepository;
+		this.mongoOperations=mongoOperations;
+	}
+
+	public Customer createCustomer(Customer customer) {
+		return customerRepository.save(customer);
+	}
+
+	public Page<Customer> getAllCustomers(Pageable pageable) {
+		return customerRepository.findAll(pageable);
+	}
+
+	public Optional<Customer> getCustomerWithId(long customerId) {
+		return customerRepository.findById(customerId);
+	}
+
+	public Optional<Customer> updateCustomer(Customer customer,long custId) {
+		Optional<Customer> cust = customerRepository.findById(custId);
+		cust.get().setId(customer.getId());
+		cust.get().setCustomerCode(customer.getCustomerCode());
+		cust.get().setCustomerName(customer.getCustomerName());
+		cust.get().setOrganizationType(customer.getOrganizationType());
+		customerRepository.save(cust.get());
+		return cust;
+	}
+
+	public List<Customer> getCustomerWithOrgnizationType(String organizationType) {
+		return customerRepository.findByOrganizationType(organizationType);
+	}
+
+	public Optional<Customer> updateStatus(long customerId, String status) {
+
+		Optional<Customer> cust = customerRepository.findById(customerId);
+
+		if (status.equals("enable")) {
+			cust.get().setStatus(status);
+			customerRepository.save(cust.get());
+			return cust;
+		} else if (status.equalsIgnoreCase("submit")) {
+			cust.get().setStatus(status);
+			customerRepository.save(cust.get());
+			return cust;
+		} else if (status.equals("pause")) {
+			cust.get().setStatus(status);
+			customerRepository.save(cust.get());
+			return cust;
+		} else {
+			cust.get().setStatus(status);
+			customerRepository.save(cust.get());
+			return cust;
+		}
+	}
+	public String getallCustomersLast30days() throws JSONException {
+		List<Customer> payingCustList=new ArrayList<>();
+		JSONObject json=new JSONObject();
+		Criteria criteria1 = Criteria.where("created_at").gte(LocalDate.now().minusDays(30)).lte(LocalDate.now());
+		System.out.println(LocalDate.now().minusDays(30));
+        Query query = new Query(criteria1);
+        List<Customer> custList = mongoOperations.find(query, Customer.class);
+        Criteria criteria = Criteria.where("created_at").gte(LocalDate.now().minusDays(30)).lte(LocalDate.now());
+		System.out.println(LocalDate.now().minusDays(30));
+        Query query1 = new Query(criteria);
+        List<Transaction> transList = mongoOperations.find(query1, Transaction.class);
+        for(Customer cust:custList) {
+        for(Transaction tran:transList) {
+        	if(tran.getAmount()!=0 && cust.getId()==tran.getCustomerId()) {
+        		payingCustList.add(cust);
+        	}
+        }
+        }
+        json.put("customers", custList.size());
+        json.put("payingCustomers", payingCustList.size());
+		return json.toString();			
+	}
+	public String customerGrowth() throws JSONException, ParseException {
+		Criteria criteria1 = Criteria.where("created_at").gt(LocalDate.now().minusDays(30)).lt(LocalDate.now());
+		System.out.println(LocalDate.now()+""+LocalDate.now().minusDays(7));
+        Query query = new Query();
+        query.addCriteria(criteria1);
+        List<Customer> tlist = mongoOperations.find(query, Customer.class);
+        System.out.println(tlist);
+		List<Customer> monList=new ArrayList<>();
+        List<Customer> tusList=new ArrayList<>();
+        List<Customer> wedList=new ArrayList<>();
+        List<Customer> thuList=new ArrayList<>();
+        List<Customer> friList=new ArrayList<>();
+        List<Customer> satList=new ArrayList<>();
+        List<Customer> sunList=new ArrayList<>();
+        JSONObject json=new JSONObject();
+    	for(Customer t:tlist) {
+    		Date date = Date.from(t.getCreatedAt());
+    		SimpleDateFormat simpleDateformat = new SimpleDateFormat("EEEE"); // the day of the week spelled out completely
+ 	        String  s1=simpleDateformat.format(date);  
+    		   System.out.println(date+""+s1);
+	      
+			if(s1.equals("Monday")) {
+				monList.add(t);
+			}
+			else if(s1.equals("Tuesday")) {
+				tusList.add(t);
+			}
+			else if(s1.equals("Wednesday")) {
+				wedList.add(t);
+			}
+			else if(s1.equals("Thursday")) {
+				thuList.add(t);
+			}
+			else if(s1.equals("Friday")) {
+				friList.add(t);
+			}
+			else if(s1.equals("Saturday")) {
+				satList.add(t);
+			}
+			else {
+				sunList.add(t);
+			}
+    	}
+			json.put("MON", monList.size());
+			json.put("TUE", tusList.size());
+			json.put("WED", wedList.size());
+			json.put("THU", thuList.size());
+			json.put("FRI", friList.size());
+			json.put("SAT", satList.size());
+			json.put("SUN", sunList.size());
+			return json.toString();
+		}
+
+}

@@ -1,0 +1,109 @@
+package com.core.x.web.rest;
+
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import javax.validation.Valid;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.core.x.domain.CopyrightText;
+import com.core.x.repository.CopyrightTextRepository;
+import com.core.x.security.AuthoritiesConstants;
+import com.core.x.service.CopyrightTextService;
+import com.core.x.service.dto.CopyrightTextDTO;
+import com.core.x.web.rest.errors.BadRequestAlertException;
+import com.core.x.web.rest.util.HeaderUtil;
+import com.core.x.web.rest.util.PaginationUtil;
+
+@RestController
+@RequestMapping("/api")
+public class CopyrightTextResource {
+
+	private final CopyrightTextService copyrightTextService;
+
+	private final CopyrightTextRepository copyrightTextRepository;
+
+	public CopyrightTextResource(CopyrightTextService copyrightTextService,
+			CopyrightTextRepository copyrightTextRepository) {
+		this.copyrightTextService = copyrightTextService;
+		this.copyrightTextRepository = copyrightTextRepository;
+	}
+
+	/**
+	 * POST /copyright/saveCopyright : Add a new copyrightText.
+	 * <p>
+	 * Add a new Copyright if the text is not empty and null
+	 * @param CopyrightText  the copyrightText to save
+	 * @return the ResponseEntity with status 201 (Created) and with body the new  CopyrightText,
+	 * @throws URISyntaxException
+	 */
+	@PostMapping("/copyright/addCopyrightText")
+	public ResponseEntity<CopyrightText> saveCoptyrightText(@Valid @RequestBody CopyrightTextDTO copyrightDTO)
+			throws URISyntaxException {
+		System.out.println(copyrightDTO.getAuthorities());
+		if (copyrightDTO.getCopyrightText() == null && copyrightDTO.getCopyrightText().isEmpty()) {
+			throw new BadRequestAlertException("CopyrightText cannot be empty or null", "copyrightManagement", "Empty");
+		}  else {
+			CopyrightText crt = copyrightTextService.saveCopyrightText(copyrightDTO);
+			return ResponseEntity.created(new URI("/api/copyright/addCopyrightText" + crt.getUserId()))
+					.headers(HeaderUtil.createAlert("CopyrightTextManagement.created", crt.getUserId()))
+					.body(crt);
+		}
+	}
+
+	@GetMapping("/copyright/getCopyrightText/{id}")
+	public ResponseEntity<CopyrightText> getCopyrightTextById(@PathVariable UUID id) {
+		Optional<CopyrightText> ct = copyrightTextRepository.findById(id);
+		return new ResponseEntity<>(ct.get(), HttpStatus.OK);
+	}
+
+	@GetMapping("/copyright/getAllCopyrightText")
+	public ResponseEntity<List<CopyrightText>> getCopyrightText(Pageable pageable) {
+		Page<CopyrightText> page = copyrightTextRepository.findAll(pageable);
+		HttpHeaders headers = PaginationUtil.generatePaginationHttpHeaders(page, "/api/copyright/getAllCopyrightText");
+		return new ResponseEntity<>(page.getContent(), headers, HttpStatus.OK);
+	}
+
+	/**
+	 * PUT /copyrightText/updateCopyrightText : update a copyrightText.
+	 *
+	 * @param userId  the userId to get specific CopyrightText
+	 * @param CopyrightText  the copyrightText to update
+	 * @return the ResponseEntity with status 200 (OK) and with body of copyrightText.
+	 */
+	@PutMapping("/copyright/updateCopyrightText/{userId}")
+	public ResponseEntity<CopyrightText> updateCopyrightText(@PathVariable String userId,
+			@RequestBody CopyrightText copyright) {
+		CopyrightText crt = copyrightTextService.updateCopyrightText(userId, copyright);
+		return new ResponseEntity<>(crt, HttpStatus.OK);
+	}
+
+	/**
+	 * GET /copyrightText/getCopyrightText : get a copyrightText.
+	 *
+	 * @return the ResponseEntity with status 200 (OK) and with body of copyrightText.
+	 */
+	@GetMapping("/copyright/getCopyrightText")
+	@PreAuthorize("hasRole(\"" + AuthoritiesConstants.ADMIN + "\")")
+	public ResponseEntity<CopyrightText> getCopyrightText() {
+		CopyrightText page = copyrightTextService.getCopyrightText();
+		return new ResponseEntity<>(page, HttpStatus.OK);
+	}
+
+}

@@ -1,0 +1,82 @@
+package com.core.x.domain;
+
+import java.io.File;
+import java.io.Serializable;
+import java.sql.Blob;
+import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
+
+import org.bson.types.Binary;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.core.x.service.dto.UserDTO;
+import com.mongodb.gridfs.GridFS;
+@Document(collection="image")
+public class Image implements Serializable{
+	private static final long serialVersionUID = 1L;
+	
+	@Id
+	private UUID id=UUID.randomUUID();
+	
+	@Field("image")
+	private byte[]  path;
+	
+	@Field("uploadedAt")
+	private Instant uploadedAt=Instant.now();
+	
+	@Field("modifiedAt")
+	private Instant modifiedAt=Instant.now(); 
+
+	
+	private Set<UserDTO> user=new HashSet<>();
+	
+	public UUID getId() {
+		return id;
+	}
+	public void setId(UUID id) {
+		this.id = id;
+	}
+	
+	public byte[] getPath() {
+		return path;
+	}
+	public void setPath(byte[] path) {
+		this.path = path;
+	}
+	public Set<UserDTO> getUser() {
+		return user;
+	}
+	public void setUser(Set<UserDTO> user) {
+		this.user = user;
+	}
+	
+	
+	public Instant getUploadedAt() {
+		return uploadedAt;
+	}
+	public void setUploadedAt(Instant uploadedAt) {
+		this.uploadedAt = uploadedAt;
+	}
+	public Instant getModifiedAt() {
+		return modifiedAt;
+	}
+	public void setModifiedAt(Instant modifiedAt) {
+		this.modifiedAt = modifiedAt;
+	}
+	
+	@Override
+	public String toString() {
+		return "Image [id=" + id + ", path=" + path + ", uploadedAt=" + uploadedAt + ", modifiedAt=" + modifiedAt
+				+ ", user=" + user + "]";
+	}
+	
+	
+	
+	
+	
+}

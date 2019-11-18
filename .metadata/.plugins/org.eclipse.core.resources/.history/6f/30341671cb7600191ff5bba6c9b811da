@@ -1,0 +1,44 @@
+import { Component, OnInit } from '@angular/core';
+import { FeedService } from 'app/FeedService/FeedService';
+import { HttpClient } from '@angular/common/http';
+import { Router } from '@angular/router';
+
+@Component({
+  selector: 'jhi-invoice',
+  templateUrl: './invoice.component.html',
+  styles: []
+})
+export class InvoiceComponent implements OnInit {
+  feedres;
+  public arr=[];
+  public arrCopy=[];
+  sum =0;
+  id;
+  userDetails
+  constructor(private router:Router ,private feedService: FeedService,  private http: HttpClient) { }
+
+  ngOnInit() {
+    this.id = sessionStorage.getItem('id')
+    this.feedService.getUserDetails(this.id).subscribe(
+      res => {
+        this.userDetails = res;
+        console.log(this.userDetails.id)    
+    this.feedService.getInvoiceData(this.userDetails.id).subscribe(
+      res=>{
+        this.feedres =res;
+            console.log(this.feedres)
+            for (let element in this.feedres) 
+        {
+          this.arr.push(this.feedres[element]);
+        }
+        this.arrCopy = this.arr;
+        
+        for(let i=0; i<=this.feedres.length; i++){
+           this.sum = this.sum + this.feedres[i].price;
+           }
+      }
+    )
+  }
+)}
+
+}

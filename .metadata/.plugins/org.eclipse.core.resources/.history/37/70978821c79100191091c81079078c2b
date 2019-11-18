@@ -1,0 +1,440 @@
+package com.core.x.service;
+
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.group;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.newAggregation;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.sort;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.project;
+
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.springframework.boot.configurationprocessor.json.JSONArray;
+import org.springframework.boot.configurationprocessor.json.JSONException;
+import org.springframework.boot.configurationprocessor.json.JSONObject;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.stereotype.Service;
+
+import com.core.x.domain.Ticket;
+import com.core.x.domain.User;
+import com.core.x.repository.TicketRepository;
+import com.core.x.repository.UserRepository;
+import com.core.x.service.dto.TicketDTO;
+
+
+@Service
+public class TicketService {
+
+	private final TicketRepository ticketRepository;
+   private final MongoOperations mongoOperations;
+   private final  UserRepository userRepository;
+
+   float percentage;
+   float total;
+   float contained;
+	public TicketService(TicketRepository ticketRepository,MongoOperations mongoOperations,UserRepository userRepository) {
+		this.ticketRepository = ticketRepository;
+		this.mongoOperations=mongoOperations;
+		this.userRepository=userRepository;
+	}
+	
+	
+	public Ticket createTicket(Ticket ticket) {
+		return ticketRepository.save(ticket);
+	}
+	
+	public Page<Ticket> getAllCreatedTickets(Pageable pageable) {
+        return ticketRepository.findAll(pageable);
+    }
+	
+	/*public List<Ticket> getopenTicket() {
+		Criteria criteria1 = Criteria.where("created_at").gte(LocalDate.now().minusDays(7)).lte(LocalDate.now());
+        Query query = new Query(criteria1);
+        List<Ticket> ticketList = mongoOperations.find(query, Ticket.class);
+        List<Ticket> tck=new ArrayList<>();
+        for(Ticket ticket:ticketList) {
+        	if(ticket.getTicketStatus().equals("opened") || ticket.getTicketStatus().equals("unsolved")|| ticket.getTicketStatus().equals("solved")) {
+        		tck.add(ticket);
+        	}
+        }
+        return tck;
+     }*/
+	
+	
+	public List<Ticket> getAllTicketsWithStatus(String status) {
+		List<Ticket>tickets=ticketRepository.findByTicketStatus(status);
+		List<Ticket> ticketStatus=new ArrayList<>();
+		ticketStatus.clear();
+		int count=0;
+       		for(Ticket tk:tickets) {
+        	if(status.equals(tk.getTicketStatus())) {
+        		count++;
+        		ticketStatus.add(tk);	
+        	}	
+       		}
+       		System.out.println(count);
+			return ticketStatus; 	
+    }
+	
+
+	public List<Ticket> getUnrepliedUnsolvedTickets(String status,String response) { 
+        List<Ticket> list=ticketRepository.findByTicketStatus(status);
+        List<Ticket> ticket=new ArrayList<>();
+        for(Ticket tk:list) {
+        	if(status.equals(tk.getTicketStatus()) && response.equals(tk.getTicketResponse())) {
+        		ticket.add(tk);
+        	}
+        }
+    	return ticket;
+
+    }
+	
+	public List<Ticket> getAllNewAndOpenedTicket() {
+		Criteria criteria1 = Criteria.where("created_at").gt(LocalDate.now());
+		System.out.println(LocalDate.now());
+        Query query = new Query(criteria1);
+        List<Ticket> ticket = mongoOperations.find(query, Ticket.class);
+        System.out.println(ticket);
+        List<Ticket> tr=new ArrayList<>();
+        tr.clear();
+        for(Ticket tk:ticket) {
+        	if(tk.getTicketStatus().equalsIgnoreCase("unsolved")||tk.getTicketStatus().equalsIgnoreCase("opened")) {
+        	  tr.add(tk);	
+        	}
+        }
+        return tr;
+	
+    }
+	
+	
+	public Optional<Ticket> updateTicket(Ticket ticket,UUID id) {
+		Optional<Ticket> tk=ticketRepository.findById(id);
+		//tk.get().setCreatedAt(createdAt);
+		ticketRepository.save(tk.get());
+		return tk;
+	}
+	
+	
+	public String getAllunsloveticketsByStatus(String ticketStatus) throws JSONException {
+		List<Ticket> tk=ticketRepository.findByTicketStatus(ticketStatus);
+		 List<Ticket> newList=new ArrayList<>();
+	        List<Ticket> openList=new ArrayList<>();
+	        List<Ticket> pendingList=new ArrayList<>();
+	        List<Ticket> holdList=new ArrayList<>();
+	        JSONObject json=new JSONObject();
+			for(Ticket t:tk) {
+				if(t.getStatus().equalsIgnoreCase("New")) {
+					newList.add(t);
+				}
+				else if(t.getStatus().equalsIgnoreCase("open")) {
+					openList.add(t);
+				}
+				else if(t.getStatus().equalsIgnoreCase("pending")) {
+					pendingList.add(t);
+				}
+				else {
+					holdList.add(t);
+				}
+			}
+			
+			json.put("new",newList.size());
+	        json.put("open",openList.size());
+	        json.put("pending",pendingList.size());   
+	        json.put("hold",holdList.size());
+			
+			return json.toString();
+		}
+    
+	
+	public String getAllCreatedTicketsLastSevendays() throws JSONException {
+		Criteria criteria1 = Criteria.where("created_at").gt(LocalDate.now().minusDays(7)).lt(LocalDate.now());
+        Query query = new Query(criteria1); 
+        List<Ticket> as = mongoOperations.find(query, Ticket.class);
+        JSONObject json=new JSONObject();
+        List<Ticket> newtkList=new ArrayList<>();
+        List<Ticket> opentkList=new ArrayList<>();
+       for(Ticket tkt:as) {
+    	 if(tkt.getStatus().equalsIgnoreCase("New")) {
+    		 newtkList.add(tkt);
+    	}
+          if(tkt.getStatus().equalsIgnoreCase("Open")) {
+     		opentkList.add(tkt);
+     	}
+    	 
+       }
+       json.put("totalTickets", as.size());
+       json.put("newTicket", newtkList.size());
+       json.put("openTicket", opentkList.size());
+        return json.toString();
+	
+    }
+	
+	 public String getResponseTimeLastSevendays() throws JSONException {
+		 JSONObject json=new JSONObject();
+	        long noOfDays=0;
+	        float responseTime=0;
+	        List<Ticket> tkList=new ArrayList<>();
+			Criteria criteria1 = Criteria.where("created_at").gt(LocalDate.now().minusDays(7)).lt(LocalDate.now());	   
+	        Query query = new Query(criteria1); 
+	        List<Ticket> as = mongoOperations.find(query, Ticket.class);
+	        System.out.println(as);
+	       for(Ticket tkt:as) {
+	    	  if(tkt.getTicketStatus().equalsIgnoreCase("solved")) {
+	    		    noOfDays =noOfDays+ChronoUnit.DAYS.between(tkt.getCreatedAt(),tkt.getUpdatedAt());
+	    		    tkList.add(tkt);
+	    	}
+	    	
+	       }
+	       System.out.println(noOfDays);
+	       total=as.size();
+	       contained=tkList.size();
+	       responseTime=noOfDays/tkList.size();
+	       percentage=(float)(contained*100/total);
+	       json.put("ResponseTime", responseTime);
+	       json.put("CompletedTicket", percentage);
+	        return json.toString();
+		
+	    }
+
+	
+	public Long timeSinceUpdate(String status) {
+		 long timeSinceUpdateDays = 0;
+		 List<Ticket> tklist=ticketRepository.findByTicketStatus(status);
+		 for(Ticket tk:tklist) {
+				 long  noOfDays = ChronoUnit.DAYS.between(tk.getUpdatedAt(), Instant.now());
+				 timeSinceUpdateDays=timeSinceUpdateDays+noOfDays;
+			 }
+		
+		 System.out.println(timeSinceUpdateDays);
+		  return timeSinceUpdateDays;
+    }
+	
+	
+	public Long unassignTicketAge(String status,String response) {
+		 long unassignedTicketAge = 0;
+		 List<Ticket> tklist=ticketRepository.findByTicketStatus(status);
+		 for(Ticket tk:tklist) {
+			 if(tk.getTicketResponse().equals(response)&&tk.getTicketResponse()!=null) {
+				 long  noOfDays = ChronoUnit.DAYS.between(Instant.now(),tk.getDueAt());
+				 unassignedTicketAge=unassignedTicketAge+noOfDays;
+			 }
+		 }
+		 System.out.println(unassignedTicketAge);
+		  return unassignedTicketAge;
+   }
+	
+		public String ticketByFullRsolutionTime(String ticketStatus) throws ParseException, JSONException {
+		List<Ticket> tlist=ticketRepository.findByTicketStatus(ticketStatus);
+        List<Ticket> hoursList=new ArrayList<>();
+        List<Ticket> dayList=new ArrayList<>();
+        List<Ticket> weekList=new ArrayList<>();
+        List<Ticket> afteweekList=new ArrayList<>();
+        JSONObject json=new JSONObject();
+        for(Ticket t:tlist) {
+        	Instant date1=t.getCreatedAt();
+		Instant date2=t.getUpdatedAt();
+		long seconds=date2.getEpochSecond()-date1.getEpochSecond();
+		long hours=seconds/3600;
+	 long days=seconds/86400;
+        if(hours<=8) {
+        	hoursList.add(t);	
+        }
+        else if (hours > 8 && hours <= 24) {
+        	dayList.add(t);
+		}
+        else if (days >= 1 && days <= 7) {
+        	weekList.add(t);
+		}
+	
+		else {
+			afteweekList.add(t);
+		}
+
+        }
+        json.put("0-8hrs",hoursList.size());
+        json.put("8-24hrs",dayList.size());
+        json.put("1-7days",weekList.size());   
+        json.put(">7days",afteweekList.size());
+        
+        return json.toString();
+	}
+		
+		
+		
+	public String CreateTicketsDayOfWeek(String ticketStatus) throws JSONException, ParseException {
+		Criteria criteria1 = Criteria.where("created_at").gt(LocalDate.now().minusDays(7)).lt(LocalDate.now());
+		System.out.println(LocalDate.now()+""+LocalDate.now().minusDays(7));
+        Query query = new Query();
+        query.addCriteria(criteria1).addCriteria(new Criteria().andOperator(Criteria.where("ticket_status").is(ticketStatus)));
+        List<Ticket> tlist = mongoOperations.find(query, Ticket.class);
+        System.out.println(tlist);
+		List<Ticket> monList=new ArrayList<>();
+        List<Ticket> tueList=new ArrayList<>();
+        List<Ticket> wedList=new ArrayList<>();
+        List<Ticket> thuList=new ArrayList<>();
+        List<Ticket> friList=new ArrayList<>();
+        List<Ticket> satList=new ArrayList<>();
+        List<Ticket> sunList=new ArrayList<>();
+    	for(Ticket t:tlist) {
+    		Date date = Date.from(t.getCreatedAt());
+    		SimpleDateFormat simpleDateformat = new SimpleDateFormat("EEEE"); // the day of the week spelled out completely
+ 	        String  s1=simpleDateformat.format(date);  
+    		   System.out.println(date+""+s1);
+	      
+			if(s1.equals("Monday")) {
+				monList.add(t);
+			}
+			else if(s1.equals("Tuesday")) {
+				tueList.add(t);
+			}
+			else if(s1.equals("Wednesday")) {
+				wedList.add(t);
+			}
+			else if(s1.equals("Thursday")) {
+				thuList.add(t);
+			}
+			else if(s1.equals("Friday")) {
+				friList.add(t);
+			}
+			else if(s1.equals("Saturday")) {
+				satList.add(t);
+			}
+			else {
+				sunList.add(t);
+			}
+    	}
+			
+    	JSONObject obj1= new JSONObject ();
+		obj1.put("DayofWeek","MON");
+		obj1.put("TottalTickets", monList.size());
+		
+		JSONObject obj2= new JSONObject ();
+		obj2.put("DayofWeek","TUE");
+		obj2.put("TottalTickets", tueList.size());
+
+		JSONObject obj3= new JSONObject ();
+		obj3.put("DayofWeek","WED");
+		obj3.put("TottalTickets", wedList.size());
+		
+		
+		JSONObject obj4= new JSONObject ();
+		obj4.put("DayofWeek","THU");
+		obj4.put("TottalTickets", thuList.size());
+		
+		JSONObject obj5= new JSONObject ();
+		obj5.put("DayofWeek","FRI");
+		obj5.put("TottalTickets", friList.size());
+		
+		JSONObject obj6= new JSONObject ();
+		obj6.put("DayofWeek","SAT");
+		obj6.put("TottalTickets", satList.size());
+		
+		JSONObject obj7= new JSONObject ();
+		obj7.put("DayofWeek","SUN");
+		obj7.put("TottalTickets", sunList.size());
+		
+		
+
+		JSONArray  jsonArray= new JSONArray();
+		jsonArray.put(obj1);
+		jsonArray.put(obj2);
+		jsonArray.put(obj3);
+		jsonArray.put(obj4);
+		jsonArray.put(obj5);
+		jsonArray.put(obj6);
+		jsonArray.put(obj7);
+		return jsonArray.toString();
+
+		}
+	
+	
+	public String getOnetouchTicket() throws JSONException {
+		List<Ticket> tkList=ticketRepository.findAll();
+		List<Ticket> onetouchtkList=new ArrayList<>();
+		 JSONObject json=new JSONObject();
+		for(Ticket tkt:tkList) {
+			if(tkt.getStatus().equalsIgnoreCase("Open")||tkt.getStatus().equalsIgnoreCase("Hold")||tkt.getStatus().equalsIgnoreCase("Pending")) {
+				onetouchtkList.add(tkt);
+			}
+		}
+		total=tkList.size();
+	       contained=onetouchtkList.size();
+		percentage=(float)(contained/total)*100;
+		System.out.println(percentage+"/"+onetouchtkList.size()*100+"/"+tkList.size());
+		json.put("OnetouchTickets", percentage);
+		return json.toString();
+		
+	}
+	
+	public String getReopendTicket() throws JSONException {
+		 JSONObject json=new JSONObject();
+		List<Ticket> tList=ticketRepository.findAll();
+		List<Ticket> reOpenedList=new ArrayList<>();
+		for(Ticket ticket:tList) {
+			if(ticket.getReOpened()!=false) {
+				reOpenedList.add(ticket);
+			}
+		}
+		System.out.println(reOpenedList.size()+""+tList.size());
+		total=tList.size();
+	    contained=reOpenedList.size();
+		percentage=(float)(contained/total)*100;
+		json.put("ReopenedTicket", percentage);
+		return json.toString();
+	}
+	
+	
+ public String getAssigneeTicket(String ticketstatus) throws JSONException{
+	 long timeSinceUpdate = 0 ;
+	 float unassignedTicketAge = 0;
+		List<Ticket> tktList=ticketRepository.findByTicketStatus(ticketstatus);
+	 Aggregation agg = newAggregation(
+				match(Criteria.where("ticketStatus").is(ticketstatus)),
+				group("responderId").count().as("total"),
+				project("total").and("responderId").previousOperation(),
+				sort(Sort.Direction.DESC, "total")		
+			);
+	 System.out.println(agg.toString());
+	//Convert the aggregation result into a List
+			AggregationResults<TicketDTO> groupResults 
+				= mongoOperations.aggregate(agg, Ticket.class, TicketDTO.class);
+			List<TicketDTO> result = groupResults.getMappedResults();
+			JSONObject obj1;
+			JSONArray  jsonArray= new JSONArray();
+			for(TicketDTO tkdto:result) {
+				timeSinceUpdate=0;
+			       unassignedTicketAge=0;
+				for(Ticket tk:tktList) {
+					if(tk.getResponderId().equals(tkdto.getResponderId()) && tk.getTicketResponse()!=null) {
+						long  noOfDays = ChronoUnit.DAYS.between(tk.getUpdatedAt(), Instant.now());
+						 timeSinceUpdate=timeSinceUpdate+noOfDays;
+						 long  noOfDays1 = ChronoUnit.DAYS.between(Instant.now(),tk.getDueBy());
+						 unassignedTicketAge=unassignedTicketAge+noOfDays1;
+					}
+				}
+				Optional<User> user=userRepository.findById(tkdto.getResponderId());
+				obj1= new JSONObject ();
+				obj1.put("Assignee Name",user.get().getFirstName());
+				obj1.put("Unsolved Ticket",tkdto.getTotal());	
+				obj1.put("TimeSinceUpdateMED", timeSinceUpdate);
+				obj1.put("TicketsAgeMED", unassignedTicketAge);
+				jsonArray.put(obj1);
+			}
+			return jsonArray.toString();
+ }
+}
